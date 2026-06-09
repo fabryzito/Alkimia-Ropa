@@ -12,31 +12,34 @@ import providerRoutes from "./routes/providerRoutes.js";
 import userRoutes from "./routes/userRoutes.js";
 import saleRoutes from "./routes/saleRoutes.js";
 
-// Configuración inicial
 dotenv.config();
+
 const app = express();
 const PORT = process.env.PORT || 5000;
 
-// Configuración dinámica de CORS
+const allowedOrigins = [
+  "http://localhost:5173",
+  "http://localhost:5174",
+  process.env.FRONTEND_URL,
+].filter(Boolean);
+
 const corsOptions = {
   origin: (origin, callback) => {
-    // Permitir herramientas sin origen (Postman/curl), dominios .vercel.app o localhost
-    if (!origin || origin.endsWith('.vercel.app') || origin === 'http://localhost:5173') {
+    if (!origin || allowedOrigins.includes(origin) || origin.endsWith(".vercel.app")) {
       callback(null, true);
     } else {
-      callback(new Error('No permitido por CORS'));
+      callback(new Error(`No permitido por CORS: ${origin}`));
     }
   },
   credentials: true,
 };
 
-// Middlewares
 app.use(cors(corsOptions));
+app.options("*", cors(corsOptions));
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
 app.use(cookieParser());
 
-// Rutas
 app.use("/api/auth", authRoutes);
 app.use("/api/products", productRoutes);
 app.use("/api/categories", categoryRoutes);
@@ -44,26 +47,22 @@ app.use("/api/providers", providerRoutes);
 app.use("/api/users", userRoutes);
 app.use("/api/sales", saleRoutes);
 
-// Health check
 app.get("/api/health", (req, res) => {
   res.json({ status: "ok", message: "Server is running" });
 });
 
-// Middleware de manejo de errores
 app.use(errorHandler);
 
-// Conexión a Base de Datos e Inicio del Servidor
 mongoose
   .connect(process.env.MONGODB_URI)
-  .then(() => console.log("✅ Connected to MongoDB"))
-  .catch((error) => console.error("❌ MongoDB connection error:", error));
+  .then(() => console.log("Connected to MongoDB"))
+  .catch((error) => console.error("MongoDB connection error:", error));
 
 app.listen(PORT, () => {
-  console.log(`🚀 Server running on port ${PORT}`);
+  console.log(`Server running on port ${PORT}`);
 });
 
-// Manejo de errores globales
 process.on("unhandledRejection", (err) => {
-  console.error("UNHANDLED REJECTION! 💥 Shutting down...");
+  console.error("UNHANDLED REJECTION! Shutting down...");
   console.error(err.name, err.message);
 });

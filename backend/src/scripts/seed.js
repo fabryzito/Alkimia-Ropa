@@ -75,9 +75,9 @@ const seedData = async () => {
 
     console.log("✅ Database seeded successfully!")
     console.log("\n📝 Test credentials:")
-    console.log("Admin: admin@libreria.com / admin123")
-    console.log("Employee: empleado@libreria.com / empleado123")
-    console.log("Client: cliente@libreria.com / cliente123")
+    console.log("Admin: mariano@gmail.com / 123321")
+    console.log("Employee: natalia@gmail.com / 123321")
+    console.log("Client: cliente@alkimia.com / 123321")
 
     process.exit(0)
   } catch (error) {

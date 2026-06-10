@@ -1,373 +1,210 @@
-"use client"
+"use client";
 
-import { useState, useEffect } from "react"
-import AdminLayout from "../../components/layout/AdminLayout"
-import { saleService } from "../../services/saleService"
-import { productService } from "../../services/productService"
-import { categoryService } from "../../services/categoryService"
+import { useEffect, useState } from "react";
+import AdminLayout from "../../components/layout/AdminLayout";
+import Modal from "../../components/common/Modal";
+import { saleService } from "../../services/saleService";
 import {
+  Alert,
+  Button,
   Card,
   CardContent,
-  Typography,
-  Grid,
   CircularProgress,
+  Grid,
+  Paper,
   Table,
   TableBody,
   TableCell,
   TableContainer,
   TableHead,
   TableRow,
-  Paper,
-  TextField,
-  Button,
-  FormControl,
-  InputLabel,
-  Select,
-  MenuItem,
-} from "@mui/material"
+  Typography,
+} from "@mui/material";
 import {
-  TrendingUp as TrendingUpIcon,
   AttachMoney as AttachMoneyIcon,
+  BarChart as BarChartIcon,
   ShoppingCart as ShoppingCartIcon,
-  Inventory as InventoryIcon,
-} from "@mui/icons-material"
+  TrendingUp as TrendingUpIcon,
+} from "@mui/icons-material";
 
 export default function ReportsPage() {
-  const [loading, setLoading] = useState(true)
-  const [stats, setStats] = useState(null)
-  const [sales, setSales] = useState([])
-  const [products, setProducts] = useState([])
-  const [categories, setCategories] = useState([])
-  const [dateFilter, setDateFilter] = useState({ start: "", end: "" })
-  const [categoryFilter, setCategoryFilter] = useState("")
-  const [topProducts, setTopProducts] = useState([])
-  const [salesByCategory, setSalesByCategory] = useState([])
+  const [reports, setReports] = useState(null);
+  const [sales, setSales] = useState([]);
+  const [loading, setLoading] = useState(true);
+  const [resetModalOpen, setResetModalOpen] = useState(false);
+  const [alert, setAlert] = useState({ show: false, message: "", type: "success" });
 
   useEffect(() => {
-    loadReportData()
-  }, [])
+    loadReports();
+  }, []);
 
-  const loadReportData = async () => {
-    setLoading(true)
+  const showAlert = (message, type) => {
+    setAlert({ show: true, message, type });
+    setTimeout(() => setAlert({ show: false, message: "", type: "success" }), 3500);
+  };
 
-    const [salesStats, salesResult, productsResult, categoriesResult] = await Promise.all([
-      saleService.getStatistics(),
-      saleService.getAll(),
-      productService.getAll(),
-      categoryService.getAll(),
-    ])
+  const loadReports = async () => {
+    setLoading(true);
+    const [statsResult, salesResult] = await Promise.all([saleService.getStatistics(), saleService.getAll()]);
 
-    if (salesStats.success && salesResult.success && productsResult.success && categoriesResult.success) {
-      setStats(salesStats.data)
-      setSales(salesResult.data)
-      setProducts(productsResult.data)
-      setCategories(categoriesResult.data)
+    if (statsResult.success) setReports(statsResult.data);
+    if (salesResult.success) setSales(salesResult.data || []);
 
-      // Calculate top selling products
-      calculateTopProducts(salesResult.data)
+    setLoading(false);
+  };
 
-      // Calculate sales by category
-      calculateSalesByCategory(salesResult.data, productsResult.data, categoriesResult.data)
-    }
+  const handleResetReports = async () => {
+    const result = await saleService.resetReports();
 
-    setLoading(false)
-  }
-
-  const calculateTopProducts = (salesData) => {
-    const productSales = {}
-
-    salesData.forEach((sale) => {
-      sale.products.forEach((product) => {
-        if (!productSales[product.productId]) {
-          productSales[product.productId] = {
-            id: product.productId,
-            name: product.productName,
-            quantity: 0,
-            revenue: 0,
-          }
-        }
-        productSales[product.productId].quantity += product.quantity
-        productSales[product.productId].revenue += product.price * product.quantity
-      })
-    })
-
-    const sorted = Object.values(productSales).sort((a, b) => b.quantity - a.quantity)
-    setTopProducts(sorted.slice(0, 10))
-  }
-
-  const calculateSalesByCategory = (salesData, productsData, categoriesData) => {
-    const categorySales = {}
-
-    categoriesData.forEach((cat) => {
-      categorySales[cat.id] = {
-        id: cat.id,
-        name: cat.name,
-        quantity: 0,
-        revenue: 0,
-      }
-    })
-
-    salesData.forEach((sale) => {
-      sale.products.forEach((product) => {
-        const productData = productsData.find((p) => p.id === product.productId)
-        if (productData && categorySales[productData.category]) {
-          categorySales[productData.category].quantity += product.quantity
-          categorySales[productData.category].revenue += product.price * product.quantity
-        }
-      })
-    })
-
-    const sorted = Object.values(categorySales).sort((a, b) => b.revenue - a.revenue)
-    setSalesByCategory(sorted)
-  }
-
-  const handleFilterByDate = async () => {
-    if (dateFilter.start && dateFilter.end) {
-      const result = await saleService.getByDateRange(dateFilter.start, dateFilter.end)
-      if (result.success) {
-        setSales(result.data)
-        calculateTopProducts(result.data)
-        calculateSalesByCategory(result.data, products, categories)
-      }
+    if (result.success) {
+      showAlert("Reportes reiniciados. Ventas eliminadas y stock restaurado.", "success");
+      setResetModalOpen(false);
+      loadReports();
     } else {
-      loadReportData()
+      showAlert(result.error || "Error al reiniciar reportes", "error");
     }
-  }
-
-  const handleFilterByCategory = () => {
-    if (categoryFilter) {
-      const filtered = topProducts.filter((product) => {
-        const productData = products.find((p) => p.id === product.id)
-        return productData && productData.category === Number.parseInt(categoryFilter)
-      })
-      setTopProducts(filtered)
-    } else {
-      calculateTopProducts(sales)
-    }
-  }
-
-  const handleClearFilters = () => {
-    setDateFilter({ start: "", end: "" })
-    setCategoryFilter("")
-    loadReportData()
-  }
+  };
 
   if (loading) {
     return (
       <AdminLayout>
-        <div className="flex justify-center items-center h-64">
+        <div className="flex h-64 items-center justify-center">
           <CircularProgress />
         </div>
       </AdminLayout>
-    )
+    );
   }
 
   return (
     <AdminLayout>
       <div className="space-y-6">
-        <div>
-          <h1 className="text-3xl font-bold text-gray-900">Reportes y Estadísticas</h1>
-          <p className="text-gray-600">Análisis detallado de ventas y productos</p>
+        <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+          <h1 className="text-3xl font-bold text-gray-900">Reportes de ventas</h1>
+          <Button color="error" variant="outlined" onClick={() => setResetModalOpen(true)}>
+            Reiniciar reportes
+          </Button>
         </div>
 
-        {/* Filters */}
-        <Card>
-          <CardContent>
-            <Typography variant="h6" className="font-bold mb-4">
-              Filtros
-            </Typography>
-            <div className="flex gap-4 flex-wrap">
-              <TextField
-                label="Fecha Inicio"
-                type="date"
-                value={dateFilter.start}
-                onChange={(e) => setDateFilter({ ...dateFilter, start: e.target.value })}
-                InputLabelProps={{ shrink: true }}
-              />
-              <TextField
-                label="Fecha Fin"
-                type="date"
-                value={dateFilter.end}
-                onChange={(e) => setDateFilter({ ...dateFilter, end: e.target.value })}
-                InputLabelProps={{ shrink: true }}
-              />
-              <Button variant="contained" onClick={handleFilterByDate}>
-                Filtrar por Fecha
-              </Button>
+        {alert.show && (
+          <Alert severity={alert.type} onClose={() => setAlert({ ...alert, show: false })}>
+            {alert.message}
+          </Alert>
+        )}
 
-              <FormControl style={{ minWidth: 200 }}>
-                <InputLabel>Categoría</InputLabel>
-                <Select value={categoryFilter} label="Categoría" onChange={(e) => setCategoryFilter(e.target.value)}>
-                  <MenuItem value="">Todas</MenuItem>
-                  {categories.map((cat) => (
-                    <MenuItem key={cat.id} value={cat.id}>
-                      {cat.name}
-                    </MenuItem>
-                  ))}
-                </Select>
-              </FormControl>
-              <Button variant="contained" onClick={handleFilterByCategory}>
-                Filtrar por Categoría
-              </Button>
-
-              <Button variant="outlined" onClick={handleClearFilters}>
-                Limpiar Filtros
-              </Button>
-            </div>
-          </CardContent>
-        </Card>
-
-        {/* Summary Statistics */}
         <Grid container spacing={3}>
           <Grid item xs={12} sm={6} md={3}>
             <Card>
-              <CardContent>
-                <div className="flex items-center justify-between">
-                  <div>
-                    <Typography color="textSecondary" gutterBottom>
-                      Total Ventas
-                    </Typography>
-                    <Typography variant="h4" className="font-bold">
-                      {stats?.totalSales || 0}
-                    </Typography>
-                  </div>
-                  <ShoppingCartIcon className="text-purple-500" style={{ fontSize: 48 }} />
+              <CardContent className="flex items-center justify-between">
+                <div>
+                  <Typography color="textSecondary">Total ventas</Typography>
+                  <Typography variant="h4" className="font-bold">
+                    {reports?.totalSales || 0}
+                  </Typography>
                 </div>
+                <ShoppingCartIcon className="text-purple-500" style={{ fontSize: 48 }} />
               </CardContent>
             </Card>
           </Grid>
 
           <Grid item xs={12} sm={6} md={3}>
             <Card>
-              <CardContent>
-                <div className="flex items-center justify-between">
-                  <div>
-                    <Typography color="textSecondary" gutterBottom>
-                      Ingresos Totales
-                    </Typography>
-                    <Typography variant="h4" className="font-bold text-green-600">
-                      ${stats?.totalRevenue.toFixed(2) || 0}
-                    </Typography>
-                  </div>
-                  <AttachMoneyIcon className="text-green-500" style={{ fontSize: 48 }} />
+              <CardContent className="flex items-center justify-between">
+                <div>
+                  <Typography color="textSecondary">Ingresos</Typography>
+                  <Typography variant="h4" className="font-bold text-green-600">
+                    ${Number(reports?.totalRevenue || 0).toFixed(2)}
+                  </Typography>
                 </div>
+                <AttachMoneyIcon className="text-green-500" style={{ fontSize: 48 }} />
               </CardContent>
             </Card>
           </Grid>
 
           <Grid item xs={12} sm={6} md={3}>
             <Card>
-              <CardContent>
-                <div className="flex items-center justify-between">
-                  <div>
-                    <Typography color="textSecondary" gutterBottom>
-                      Venta Promedio
-                    </Typography>
-                    <Typography variant="h4" className="font-bold text-purple-600">
-                      ${stats?.averageSale.toFixed(2) || 0}
-                    </Typography>
-                  </div>
-                  <TrendingUpIcon className="text-orange-500" style={{ fontSize: 48 }} />
+              <CardContent className="flex items-center justify-between">
+                <div>
+                  <Typography color="textSecondary">Venta promedio</Typography>
+                  <Typography variant="h4" className="font-bold text-purple-600">
+                    ${Number(reports?.averageSale || 0).toFixed(2)}
+                  </Typography>
                 </div>
+                <TrendingUpIcon className="text-orange-500" style={{ fontSize: 48 }} />
               </CardContent>
             </Card>
           </Grid>
 
           <Grid item xs={12} sm={6} md={3}>
             <Card>
-              <CardContent>
-                <div className="flex items-center justify-between">
-                  <div>
-                    <Typography color="textSecondary" gutterBottom>
-                      Productos Vendidos
-                    </Typography>
-                    <Typography variant="h4" className="font-bold text-purple-600">
-                      {sales.reduce((sum, sale) => sum + sale.products.reduce((s, p) => s + p.quantity, 0), 0)}
-                    </Typography>
-                  </div>
-                  <InventoryIcon className="text-purple-500" style={{ fontSize: 48 }} />
+              <CardContent className="flex items-center justify-between">
+                <div>
+                  <Typography color="textSecondary">Ventas local</Typography>
+                  <Typography variant="h4" className="font-bold">
+                    {reports?.localSales || 0}
+                  </Typography>
                 </div>
+                <BarChartIcon className="text-purple-500" style={{ fontSize: 48 }} />
               </CardContent>
             </Card>
           </Grid>
         </Grid>
 
-        {/* Top Selling Products */}
         <Card>
           <CardContent>
-            <Typography variant="h6" className="font-bold mb-4">
-              Productos Más Vendidos
+            <Typography variant="h6" className="mb-4 font-bold">
+              Detalle de ventas
             </Typography>
-            <TableContainer component={Paper} variant="outlined">
+            <TableContainer component={Paper}>
               <Table>
                 <TableHead>
-                  <TableRow className="bg-gray-50">
-                    <TableCell className="font-semibold">Posición</TableCell>
-                    <TableCell className="font-semibold">Producto</TableCell>
-                    <TableCell className="font-semibold">Unidades Vendidas</TableCell>
-                    <TableCell className="font-semibold">Ingresos Generados</TableCell>
+                  <TableRow className="bg-gray-100">
+                    <TableCell>ID</TableCell>
+                    <TableCell>Cliente</TableCell>
+                    <TableCell>Canal</TableCell>
+                    <TableCell>Fecha</TableCell>
+                    <TableCell align="right">Total</TableCell>
                   </TableRow>
                 </TableHead>
                 <TableBody>
-                  {topProducts.map((product, index) => (
-                    <TableRow key={product.id} hover>
-                      <TableCell>
-                        <div className="flex items-center justify-center w-8 h-8 rounded-full bg-purple-100 text-purple-700 font-bold">
-                          {index + 1}
-                        </div>
+                  {sales.length > 0 ? (
+                    sales.map((sale) => (
+                      <TableRow key={sale.id} hover>
+                        <TableCell>{String(sale.id).slice(-8)}</TableCell>
+                        <TableCell>{sale.userName || sale.customerName || "Cliente"}</TableCell>
+                        <TableCell>{sale.saleChannel === "local" ? "Local" : "Online"}</TableCell>
+                        <TableCell>{sale.date}</TableCell>
+                        <TableCell align="right">${Number(sale.total || 0).toFixed(2)}</TableCell>
+                      </TableRow>
+                    ))
+                  ) : (
+                    <TableRow>
+                      <TableCell colSpan={5} align="center">
+                        No hay ventas disponibles
                       </TableCell>
-                      <TableCell className="font-medium">{product.name}</TableCell>
-                      <TableCell>{product.quantity} unidades</TableCell>
-                      <TableCell className="font-bold text-green-600">${product.revenue.toFixed(2)}</TableCell>
                     </TableRow>
-                  ))}
+                  )}
                 </TableBody>
               </Table>
             </TableContainer>
           </CardContent>
         </Card>
 
-        {/* Sales by Category */}
-        <Card>
-          <CardContent>
-            <Typography variant="h6" className="font-bold mb-4">
-              Ventas por Categoría
-            </Typography>
-            <TableContainer component={Paper} variant="outlined">
-              <Table>
-                <TableHead>
-                  <TableRow className="bg-gray-50">
-                    <TableCell className="font-semibold">Categoría</TableCell>
-                    <TableCell className="font-semibold">Productos Vendidos</TableCell>
-                    <TableCell className="font-semibold">Ingresos</TableCell>
-                    <TableCell className="font-semibold">Porcentaje del Total</TableCell>
-                  </TableRow>
-                </TableHead>
-                <TableBody>
-                  {salesByCategory.map((category) => {
-                    const percentage = stats?.totalRevenue > 0 ? (category.revenue / stats.totalRevenue) * 100 : 0
-                    return (
-                      <TableRow key={category.id} hover>
-                        <TableCell className="font-medium">{category.name}</TableCell>
-                        <TableCell>{category.quantity} unidades</TableCell>
-                        <TableCell className="font-bold text-green-600">${category.revenue.toFixed(2)}</TableCell>
-                        <TableCell>
-                          <div className="flex items-center gap-2">
-                            <div className="flex-1 bg-gray-200 rounded-full h-2">
-                              <div className="bg-purple-600 h-2 rounded-full" style={{ width: `${percentage}%` }}></div>
-                            </div>
-                            <span className="text-sm font-semibold">{percentage.toFixed(1)}%</span>
-                          </div>
-                        </TableCell>
-                      </TableRow>
-                    )
-                  })}
-                </TableBody>
-              </Table>
-            </TableContainer>
-          </CardContent>
-        </Card>
+        <Modal isOpen={resetModalOpen} onClose={() => setResetModalOpen(false)} title="Reiniciar reportes">
+          <div className="space-y-4">
+            <Alert severity="error">
+              Esta acción eliminará todas las ventas y devolverá el stock de los productos vendidos. No borra productos,
+              usuarios, clientes, categorías ni proveedores.
+            </Alert>
+            <p>¿Seguro que querés reiniciar los reportes?</p>
+            <div className="flex justify-end gap-2">
+              <Button onClick={() => setResetModalOpen(false)}>Cancelar</Button>
+              <Button color="error" variant="contained" onClick={handleResetReports}>
+                Reiniciar reportes
+              </Button>
+            </div>
+          </div>
+        </Modal>
       </div>
     </AdminLayout>
-  )
+  );
 }

@@ -45,6 +45,18 @@ export const saleService = {
     });
   },
 
+  async delete(id) {
+    return await apiRequest(`/sales/${id}`, {
+      method: "DELETE",
+    });
+  },
+
+  async resetReports() {
+    return await apiRequest("/sales/reports/reset", {
+      method: "DELETE",
+    });
+  },
+
   async getStatistics() {
     return await apiRequest("/sales/statistics");
   },

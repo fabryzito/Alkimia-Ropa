@@ -1,22 +1,30 @@
-// src/api.js
-const API_BASE_URL = import.meta.env.VITE_API_URL;
+const API_BASE_URL = (import.meta.env.VITE_API_URL || "").replace(/\/+$/, "");
 
-/**
- * Helper function to handle API requests with credentials (cookies)
- * Automatically adds /api prefix if missing
- */
 export const apiRequest = async (endpoint, options = {}) => {
-  // Aseguramos que el endpoint siempre tenga el prefijo /api
-  const formattedEndpoint = endpoint.startsWith("/api") ? endpoint : `/api${endpoint}`;
+  const cleanEndpoint = endpoint.startsWith("/") ? endpoint : `/${endpoint}`;
+
+  const formattedEndpoint =
+    API_BASE_URL.endsWith("/api") || cleanEndpoint.startsWith("/api")
+      ? cleanEndpoint
+      : `/api${cleanEndpoint}`;
+
   const url = `${API_BASE_URL}${formattedEndpoint}`;
+
+  const token = localStorage.getItem("auth_token");
+
+  const headers = {
+    "Content-Type": "application/json",
+    ...options.headers,
+  };
+
+  if (token && !headers.Authorization) {
+    headers.Authorization = `Bearer ${token}`;
+  }
 
   const config = {
     ...options,
-    credentials: "include", // Incluye cookies en la petición
-    headers: {
-      "Content-Type": "application/json",
-      ...options.headers,
-    },
+    credentials: "include",
+    headers,
   };
 
   try {
@@ -26,7 +34,10 @@ export const apiRequest = async (endpoint, options = {}) => {
     try {
       data = await response.json();
     } catch (e) {
-      data = { success: false, error: response.statusText || "Error al procesar JSON" };
+      data = {
+        success: false,
+        error: response.statusText || "Error al procesar JSON",
+      };
     }
 
     if (!response.ok) {
@@ -38,7 +49,7 @@ export const apiRequest = async (endpoint, options = {}) => {
 
     return data;
   } catch (error) {
-    console.error("[v0] API Error:", error.message);
+    console.error("[API Error]", error.message);
     return {
       success: false,
       error: error.response?.error || error.message || "Error en la conexión",

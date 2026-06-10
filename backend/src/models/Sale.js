@@ -1,26 +1,47 @@
 import mongoose from "mongoose";
 
 const saleProductSchema = new mongoose.Schema({
-  product: { type: mongoose.Schema.Types.ObjectId, ref: "Product", required: true },
+  product: {
+    type: mongoose.Schema.Types.ObjectId,
+    ref: "Product",
+    required: true,
+  },
   productName: String,
-  quantity: { type: Number, required: true, min: 1 },
-  price: { type: Number, required: true, min: 0 },
+  quantity: {
+    type: Number,
+    required: true,
+    min: 1,
+  },
+  price: {
+    type: Number,
+    required: true,
+    min: 0,
+  },
 });
 
 const saleSchema = new mongoose.Schema(
   {
-    user: { type: mongoose.Schema.Types.ObjectId, ref: "User", required: true },
+    user: {
+      type: mongoose.Schema.Types.ObjectId,
+      ref: "User",
+      default: null,
+    },
     userName: String,
     userEmail: String,
     customerName: String,
     customerEmail: String,
+    customerPhone: String,
     saleChannel: {
       type: String,
       enum: ["online", "local"],
       default: "online",
     },
     products: [saleProductSchema],
-    total: { type: Number, required: true, min: 0 },
+    total: {
+      type: Number,
+      required: true,
+      min: 0,
+    },
     paymentMethod: {
       type: String,
       enum: ["credit_card", "debit_card", "cash", "transfer"],
@@ -53,9 +74,15 @@ const saleSchema = new mongoose.Schema(
       enum: ["En preparación", "En envío", "Preparado", "Entregado", "Completado"],
       default: "En preparación",
     },
-    shippingCost: { type: Number, default: 0, min: 0 },
+    shippingCost: {
+      type: Number,
+      default: 0,
+      min: 0,
+    },
   },
-  { timestamps: true }
+  {
+    timestamps: true,
+  }
 );
 
 saleSchema.index({ user: 1 });
@@ -64,5 +91,6 @@ saleSchema.index({ saleChannel: 1 });
 saleSchema.index({ status: 1 });
 saleSchema.index({ paymentStatus: 1 });
 saleSchema.index({ orderStatus: 1 });
+saleSchema.index({ deliveryMethod: 1 });
 
 export default mongoose.model("Sale", saleSchema);

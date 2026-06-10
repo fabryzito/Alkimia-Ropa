@@ -25,6 +25,15 @@ import {
   WifiOff as WifiOffIcon,
 } from "@mui/icons-material";
 
+const TRANSFER_DATA = {
+  alias: "nataliaa72",
+  cvu: "2850621630001000092508",
+  titular: "maria Natalia balegno",
+  banco: "macro",
+  cuit: "25372816",
+  mensaje: "Tu pedido queda reservado. Una vez hecha la transferencia, envianos el comprobante por WhatsApp.",
+};
+
 export default function ClientCart() {
   const navigate = useNavigate();
   const { user } = useAuthStore();
@@ -147,9 +156,7 @@ export default function ClientCart() {
       });
 
       resumen += "------------------------------\n";
-      resumen += `*Entrega:* ${
-        deliveryMethod === "home_delivery" ? "Envío a domicilio" : "Retiro en local"
-      }\n`;
+      resumen += `*Entrega:* ${deliveryMethod === "home_delivery" ? "Envío a domicilio" : "Retiro en local"}\n`;
 
       if (deliveryMethod === "home_delivery") {
         resumen += `*Dirección:* ${deliveryAddress.street}, ${deliveryAddress.city}, ${deliveryAddress.postalCode}, ${deliveryAddress.country}\n`;
@@ -157,13 +164,30 @@ export default function ClientCart() {
       }
 
       resumen += `*Pago:* ${paymentLabels[paymentMethod] || paymentMethod}\n`;
+
+      if (paymentMethod === "transfer") {
+        resumen += "\n*Datos para transferencia:*\n";
+        resumen += `Alias: ${TRANSFER_DATA.alias}\n`;
+        resumen += `CBU/CVU: ${TRANSFER_DATA.cvu}\n`;
+        resumen += `Titular: ${TRANSFER_DATA.titular}\n`;
+        resumen += `Banco o billetera: ${TRANSFER_DATA.banco}\n`;
+        resumen += `CUIT/CUIL: ${TRANSFER_DATA.cuit}\n`;
+        resumen += `${TRANSFER_DATA.mensaje}\n`;
+      }
+
       resumen += `*Total:* $${subtotal.toFixed(2)}\n`;
 
       const mensajeCodificado = encodeURIComponent(resumen);
       const numeroTelefono = "543815533148";
       window.open(`https://wa.me/${numeroTelefono}?text=${mensajeCodificado}`, "_blank");
 
-      showAlert("Compra realizada con éxito", "success");
+      showAlert(
+        paymentMethod === "transfer"
+          ? "Pedido reservado. Enviá el comprobante por WhatsApp."
+          : "Compra realizada con éxito",
+        "success"
+      );
+
       clearCart();
 
       setTimeout(() => {
@@ -303,17 +327,33 @@ export default function ClientCart() {
                     <span>
                       <Typography className="font-medium">Transferencia bancaria</Typography>
                       <Typography variant="body2" color="textSecondary">
-                        Te enviaremos los datos de la cuenta.
+                        Tu pedido queda reservado hasta confirmar el pago.
                       </Typography>
                     </span>
                   </label>
 
-                  <label className="mt-3 flex cursor-pointer items-start gap-3 rounded-lg border p-3 hover:bg-gray-50">
-                    <Radio value="credit_card" />
+                  {paymentMethod === "transfer" && (
+                    <Alert severity="info" className="mt-4">
+                      <div className="space-y-1">
+                        <Typography className="font-semibold">Datos para transferir</Typography>
+                        <Typography variant="body2">Alias: {TRANSFER_DATA.alias}</Typography>
+                        <Typography variant="body2">CBU/CVU: {TRANSFER_DATA.cvu}</Typography>
+                        <Typography variant="body2">Titular: {TRANSFER_DATA.titular}</Typography>
+                        <Typography variant="body2">Banco o billetera: {TRANSFER_DATA.banco}</Typography>
+                        <Typography variant="body2">CUIT/CUIL: {TRANSFER_DATA.cuit}</Typography>
+                        <Typography variant="body2" className="pt-1">
+                          {TRANSFER_DATA.mensaje}
+                        </Typography>
+                      </div>
+                    </Alert>
+                  )}
+
+                  <label className="mt-3 flex cursor-not-allowed items-start gap-3 rounded-lg border bg-gray-50 p-3 opacity-70">
+                    <Radio value="credit_card" disabled />
                     <span>
                       <Typography className="font-medium">Tarjeta de crédito</Typography>
                       <Typography variant="body2" color="textSecondary">
-                        Pagás de forma segura con tarjeta.
+                        Próximamente disponible con Mercado Pago.
                       </Typography>
                     </span>
                   </label>
@@ -370,9 +410,7 @@ export default function ClientCart() {
                     Dirección de envío
                   </Typography>
 
-                  <Alert severity="info">
-                    El cargo del envío corre por tu cuenta.
-                  </Alert>
+                  <Alert severity="info">El cargo del envío corre por tu cuenta.</Alert>
 
                   <div>
                     <Typography variant="body2" className="mb-1 font-medium">

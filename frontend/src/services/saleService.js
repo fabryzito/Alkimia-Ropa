@@ -38,6 +38,13 @@ export const saleService = {
     });
   },
 
+  async updatePaymentStatus(id, paymentStatus) {
+    return await apiRequest(`/sales/${id}/status`, {
+      method: "PATCH",
+      body: JSON.stringify({ paymentStatus }),
+    });
+  },
+
   async getStatistics() {
     return await apiRequest("/sales/statistics");
   },

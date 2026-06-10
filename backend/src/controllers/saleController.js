@@ -3,15 +3,34 @@ import Product from "../models/Product.js";
 import User from "../models/User.js";
 import { sendSaleEmail } from "../services/emailService.js";
 
+const formatSale = (sale) => ({
+  id: sale._id,
+  userId: sale.user?._id || sale.user,
+  userName: sale.userName || sale.user?.name,
+  userEmail: sale.userEmail || sale.user?.email,
+  products: sale.products.map((p) => ({
+    productId: p.product?._id || p.product,
+    productName: p.productName,
+    quantity: p.quantity,
+    price: p.price,
+  })),
+  total: sale.total,
+  paymentMethod: sale.paymentMethod,
+  paymentStatus: sale.paymentStatus || "pending",
+  status: sale.status,
+  deliveryMethod: sale.deliveryMethod,
+  orderStatus: sale.orderStatus,
+  deliveryAddress: sale.deliveryAddress,
+  shippingCost: sale.shippingCost || 0,
+  date: sale.createdAt.toISOString().split("T")[0],
+});
+
 export const getSales = async (req, res, next) => {
   try {
     const { userId, startDate, endDate } = req.query;
-
     const query = {};
 
-    if (userId) {
-      query.user = userId;
-    }
+    if (userId) query.user = userId;
 
     if (startDate && endDate) {
       query.createdAt = {
@@ -25,36 +44,9 @@ export const getSales = async (req, res, next) => {
       .populate("products.product", "name")
       .sort({ createdAt: -1 });
 
-    const formattedSales = sales
-      .map((sale) => {
-        if (!sale.user) return null;
-
-        return {
-          id: sale._id,
-          userId: sale.user._id,
-          userName: sale.userName || sale.user.name,
-          userEmail: sale.userEmail || sale.user.email,
-          products: sale.products.map((p) => ({
-            productId: p.product?._id,
-            productName: p.productName,
-            quantity: p.quantity,
-            price: p.price,
-          })),
-          total: sale.total,
-          paymentMethod: sale.paymentMethod,
-          status: sale.status,
-          deliveryMethod: sale.deliveryMethod,
-          orderStatus: sale.orderStatus,
-          deliveryAddress: sale.deliveryAddress,
-          shippingCost: sale.shippingCost || 0,
-          date: sale.createdAt.toISOString().split("T")[0],
-        };
-      })
-      .filter(Boolean);
-
     res.status(200).json({
       success: true,
-      data: formattedSales,
+      data: sales.filter((sale) => sale.user).map(formatSale),
     });
   } catch (error) {
     next(error);
@@ -76,26 +68,7 @@ export const getSale = async (req, res, next) => {
 
     res.status(200).json({
       success: true,
-      data: {
-        id: sale._id,
-        userId: sale.user._id,
-        userName: sale.userName || sale.user.name,
-        userEmail: sale.userEmail || sale.user.email,
-        products: sale.products.map((p) => ({
-          productId: p.product?._id,
-          productName: p.productName,
-          quantity: p.quantity,
-          price: p.price,
-        })),
-        total: sale.total,
-        paymentMethod: sale.paymentMethod,
-        status: sale.status,
-        deliveryMethod: sale.deliveryMethod,
-        orderStatus: sale.orderStatus,
-        deliveryAddress: sale.deliveryAddress,
-        shippingCost: sale.shippingCost || 0,
-        date: sale.createdAt.toISOString().split("T")[0],
-      },
+      data: formatSale(sale),
     });
   } catch (error) {
     next(error);
@@ -125,6 +98,13 @@ export const createSale = async (req, res, next) => {
       return res.status(400).json({
         success: false,
         error: "Método de entrega requerido",
+      });
+    }
+
+    if (["credit_card", "debit_card"].includes(paymentMethod)) {
+      return res.status(400).json({
+        success: false,
+        error: "El pago con tarjeta estará disponible próximamente con Mercado Pago",
       });
     }
 
@@ -215,6 +195,9 @@ export const createSale = async (req, res, next) => {
       });
     }
 
+    const paymentStatus = paymentMethod === "transfer" ? "pending" : "paid";
+    const status = paymentStatus === "paid" ? "completed" : "pending";
+
     const sale = await Sale.create({
       user: userId,
       userName: userDoc.name,
@@ -222,7 +205,8 @@ export const createSale = async (req, res, next) => {
       products: saleProducts,
       total,
       paymentMethod,
-      status: "completed",
+      paymentStatus,
+      status,
       deliveryMethod,
       deliveryAddress: deliveryMethod === "home_delivery" ? deliveryAddress : null,
       orderStatus: "En preparación",
@@ -235,26 +219,7 @@ export const createSale = async (req, res, next) => {
 
     res.status(201).json({
       success: true,
-      data: {
-        id: populatedSale._id,
-        userId: populatedSale.user._id,
-        userName: populatedSale.userName,
-        userEmail: populatedSale.userEmail,
-        products: populatedSale.products.map((p) => ({
-          productId: p.product._id,
-          productName: p.productName,
-          quantity: p.quantity,
-          price: p.price,
-        })),
-        total: populatedSale.total,
-        paymentMethod: populatedSale.paymentMethod,
-        status: populatedSale.status,
-        deliveryMethod: populatedSale.deliveryMethod,
-        orderStatus: populatedSale.orderStatus,
-        deliveryAddress: populatedSale.deliveryAddress,
-        shippingCost: populatedSale.shippingCost || 0,
-        date: populatedSale.createdAt.toISOString().split("T")[0],
-      },
+      data: formatSale(populatedSale),
     });
   } catch (error) {
     console.error("[Sale creation error]", error.message);
@@ -264,7 +229,7 @@ export const createSale = async (req, res, next) => {
 
 export const updateSaleStatus = async (req, res, next) => {
   try {
-    const { status, orderStatus } = req.body;
+    const { status, orderStatus, paymentStatus } = req.body;
     const sale = await Sale.findById(req.params.id);
 
     if (!sale) {
@@ -274,43 +239,52 @@ export const updateSaleStatus = async (req, res, next) => {
       });
     }
 
-    if (status) {
-      sale.status = status;
+    if (paymentStatus) {
+      if (!["pending", "paid", "cancelled"].includes(paymentStatus)) {
+        return res.status(400).json({
+          success: false,
+          error: "Estado de pago inválido",
+        });
+      }
+
+      sale.paymentStatus = paymentStatus;
+      sale.status = paymentStatus === "paid" ? "completed" : paymentStatus === "cancelled" ? "cancelled" : "pending";
     }
 
+    if (status) sale.status = status;
+
     if (orderStatus) {
-      const validStatusesForDeliveryMethod =
+      const validStatuses =
         sale.deliveryMethod === "home_delivery"
           ? ["En preparación", "En envío", "Entregado"]
           : ["En preparación", "Preparado", "Entregado"];
 
-      if (!validStatusesForDeliveryMethod.includes(orderStatus)) {
+      if (!validStatuses.includes(orderStatus)) {
         return res.status(400).json({
           success: false,
-          error: `Estado de orden inválido para ${sale.deliveryMethod}`,
+          error: "Estado de orden inválido",
         });
       }
 
       sale.orderStatus = orderStatus;
 
       if (orderStatus === "Entregado") {
-        const saleData = {
-          id: sale._id.toString().slice(-8),
-          date: sale.createdAt,
-          userName: sale.userName,
-          userEmail: sale.userEmail,
-          products: sale.products,
-          total: sale.total,
-          paymentMethod: sale.paymentMethod,
-          status: sale.status,
-          deliveryMethod: sale.deliveryMethod,
-          deliveryAddress: sale.deliveryAddress,
-          orderStatus: sale.orderStatus,
-          shippingCost: sale.shippingCost || 0,
-        };
-
         try {
-          await sendSaleEmail(saleData);
+          await sendSaleEmail({
+            id: sale._id.toString().slice(-8),
+            date: sale.createdAt,
+            userName: sale.userName,
+            userEmail: sale.userEmail,
+            products: sale.products,
+            total: sale.total,
+            paymentMethod: sale.paymentMethod,
+            paymentStatus: sale.paymentStatus,
+            status: sale.status,
+            deliveryMethod: sale.deliveryMethod,
+            deliveryAddress: sale.deliveryAddress,
+            orderStatus: sale.orderStatus,
+            shippingCost: sale.shippingCost || 0,
+          });
         } catch (emailError) {
           console.error("[Email error]", emailError.message);
         }
@@ -325,26 +299,7 @@ export const updateSaleStatus = async (req, res, next) => {
 
     res.status(200).json({
       success: true,
-      data: {
-        id: populatedSale._id,
-        userId: populatedSale.user._id,
-        userName: populatedSale.userName,
-        userEmail: populatedSale.userEmail,
-        products: populatedSale.products.map((p) => ({
-          productId: p.product._id,
-          productName: p.productName,
-          quantity: p.quantity,
-          price: p.price,
-        })),
-        total: populatedSale.total,
-        paymentMethod: populatedSale.paymentMethod,
-        status: populatedSale.status,
-        deliveryMethod: populatedSale.deliveryMethod,
-        orderStatus: populatedSale.orderStatus,
-        deliveryAddress: populatedSale.deliveryAddress,
-        shippingCost: populatedSale.shippingCost || 0,
-        date: populatedSale.createdAt.toISOString().split("T")[0],
-      },
+      data: formatSale(populatedSale),
     });
   } catch (error) {
     next(error);
@@ -354,24 +309,20 @@ export const updateSaleStatus = async (req, res, next) => {
 export const getSalesStatistics = async (req, res, next) => {
   try {
     const sales = await Sale.find();
-
-    const totalSales = sales.length;
     const totalRevenue = sales.reduce((sum, sale) => sum + sale.total, 0);
-    const completedSales = sales.filter((s) => s.status === "completed").length;
-    const pendingSales = sales.filter((s) => s.status === "pending").length;
-    const homeDeliveries = sales.filter((s) => s.deliveryMethod === "home_delivery").length;
-    const localPickups = sales.filter((s) => s.deliveryMethod === "local_pickup").length;
 
     res.status(200).json({
       success: true,
       data: {
-        totalSales,
+        totalSales: sales.length,
         totalRevenue,
-        completedSales,
-        pendingSales,
-        homeDeliveries,
-        localPickups,
-        averageSale: totalSales > 0 ? totalRevenue / totalSales : 0,
+        completedSales: sales.filter((s) => s.status === "completed").length,
+        pendingSales: sales.filter((s) => s.status === "pending").length,
+        pendingPayments: sales.filter((s) => s.paymentStatus === "pending").length,
+        paidPayments: sales.filter((s) => s.paymentStatus === "paid").length,
+        homeDeliveries: sales.filter((s) => s.deliveryMethod === "home_delivery").length,
+        localPickups: sales.filter((s) => s.deliveryMethod === "local_pickup").length,
+        averageSale: sales.length > 0 ? totalRevenue / sales.length : 0,
       },
     });
   } catch (error) {

@@ -1,4 +1,4 @@
-import mongoose from "mongoose"
+import mongoose from "mongoose";
 
 const saleProductSchema = new mongoose.Schema({
   product: {
@@ -17,7 +17,7 @@ const saleProductSchema = new mongoose.Schema({
     required: true,
     min: 0,
   },
-})
+});
 
 const saleSchema = new mongoose.Schema(
   {
@@ -39,10 +39,15 @@ const saleSchema = new mongoose.Schema(
       enum: ["credit_card", "debit_card", "cash", "transfer"],
       required: [true, "El método de pago es obligatorio"],
     },
+    paymentStatus: {
+      type: String,
+      enum: ["pending", "paid", "cancelled"],
+      default: "pending",
+    },
     status: {
       type: String,
       enum: ["pending", "completed", "cancelled"],
-      default: "completed",
+      default: "pending",
     },
     deliveryMethod: {
       type: String,
@@ -69,14 +74,14 @@ const saleSchema = new mongoose.Schema(
   },
   {
     timestamps: true,
-  },
-)
+  }
+);
 
-// Index for queries
-saleSchema.index({ user: 1 })
-saleSchema.index({ createdAt: -1 })
-saleSchema.index({ status: 1 })
-saleSchema.index({ orderStatus: 1 })
-saleSchema.index({ deliveryMethod: 1 })
+saleSchema.index({ user: 1 });
+saleSchema.index({ createdAt: -1 });
+saleSchema.index({ status: 1 });
+saleSchema.index({ paymentStatus: 1 });
+saleSchema.index({ orderStatus: 1 });
+saleSchema.index({ deliveryMethod: 1 });
 
-export default mongoose.model("Sale", saleSchema)
+export default mongoose.model("Sale", saleSchema);

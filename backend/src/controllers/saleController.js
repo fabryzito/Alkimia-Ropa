@@ -293,13 +293,12 @@ export const updateSaleStatus = async (req, res, next) => {
       sale.status = status;
     }
 
+    let shouldSendDeliveryEmail = false;
+
     if (orderStatus) {
       const normalizedStatus = normalizeOrderStatus(orderStatus);
 
-      const validStatuses =
-        sale.deliveryMethod === "home_delivery"
-          ? ["En preparación", "En envío", "Entregado"]
-          : ["En preparación", "Preparado", "Entregado"];
+      const validStatuses = ["En preparación", "En envío", "Preparado", "Entregado"];
 
       if (!validStatuses.includes(normalizedStatus)) {
         return res.status(400).json({
@@ -309,31 +308,7 @@ export const updateSaleStatus = async (req, res, next) => {
       }
 
       sale.orderStatus = normalizedStatus;
-
-      if (normalizedStatus === "Entregado") {
-        try {
-          await sendSaleEmail({
-            id: sale._id.toString().slice(-8),
-            date: sale.createdAt,
-            userName: sale.userName,
-            userEmail: sale.userEmail,
-            customerName: sale.customerName,
-            customerEmail: sale.customerEmail,
-            customerPhone: sale.customerPhone,
-            products: sale.products,
-            total: sale.total,
-            paymentMethod: sale.paymentMethod,
-            paymentStatus: sale.paymentStatus,
-            status: sale.status,
-            deliveryMethod: sale.deliveryMethod,
-            deliveryAddress: sale.deliveryAddress,
-            orderStatus: sale.orderStatus,
-            shippingCost: sale.shippingCost || 0,
-          });
-        } catch (emailError) {
-          console.error("[Email error]", emailError.message);
-        }
-      }
+      shouldSendDeliveryEmail = normalizedStatus === "Entregado";
     }
 
     await sale.save();
@@ -341,6 +316,29 @@ export const updateSaleStatus = async (req, res, next) => {
     const populatedSale = await Sale.findById(sale._id)
       .populate("user", "name email")
       .populate("products.product", "name");
+
+    if (shouldSendDeliveryEmail) {
+      sendSaleEmail({
+        id: sale._id.toString().slice(-8),
+        date: sale.createdAt,
+        userName: sale.userName,
+        userEmail: sale.userEmail,
+        customerName: sale.customerName,
+        customerEmail: sale.customerEmail,
+        customerPhone: sale.customerPhone,
+        products: sale.products,
+        total: sale.total,
+        paymentMethod: sale.paymentMethod,
+        paymentStatus: sale.paymentStatus,
+        status: sale.status,
+        deliveryMethod: sale.deliveryMethod,
+        deliveryAddress: sale.deliveryAddress,
+        orderStatus: sale.orderStatus,
+        shippingCost: sale.shippingCost || 0,
+      }).catch((emailError) => {
+        console.error("[Email error]", emailError.message);
+      });
+    }
 
     res.status(200).json({
       success: true,

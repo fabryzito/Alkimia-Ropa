@@ -58,6 +58,7 @@ export default function SalesPage() {
 
   const handleUpdateOrderStatus = async (id) => {
     const newStatus = updateStatuses[id];
+
     if (!newStatus) {
       showAlert("Seleccioná un estado del pedido", "warning");
       return;
@@ -67,8 +68,12 @@ export default function SalesPage() {
 
     if (result.success) {
       setUpdateStatuses((prev) => ({ ...prev, [id]: "" }));
-      showAlert("Estado del pedido actualizado", "success");
+      showAlert(newStatus === "Entregado" ? "Pedido entregado. Se intentará enviar el email." : "Estado actualizado", "success");
       await loadSales();
+
+      if (viewingSale && viewingSale.id === id) {
+        setViewingSale({ ...viewingSale, orderStatus: newStatus });
+      }
     } else {
       showAlert(result.error || "Error al actualizar el estado", "error");
     }
@@ -80,6 +85,10 @@ export default function SalesPage() {
     if (result.success) {
       showAlert("Pago marcado como pagado", "success");
       await loadSales();
+
+      if (viewingSale && viewingSale.id === id) {
+        setViewingSale({ ...viewingSale, paymentStatus: "paid", status: "completed" });
+      }
     } else {
       showAlert(result.error || "Error al marcar como pagado", "error");
     }
@@ -117,10 +126,8 @@ export default function SalesPage() {
     setLoading(false);
   };
 
-  const getValidOrderStatuses = (deliveryMethod) => {
-    if (deliveryMethod === "home_delivery") return ["En preparación", "En envío", "Entregado"];
-    if (deliveryMethod === "local_pickup") return ["En preparación", "Preparado", "Entregado"];
-    return ["En preparación", "Entregado"];
+  const getValidOrderStatuses = () => {
+    return ["En preparación", "En envío", "Preparado", "Entregado"];
   };
 
   const getOrderStatusColor = (status) => {
@@ -131,6 +138,7 @@ export default function SalesPage() {
       Entregado: "success",
       Completado: "success",
     };
+
     return colors[status] || "default";
   };
 
@@ -141,16 +149,27 @@ export default function SalesPage() {
       cash: "Efectivo",
       transfer: "Transferencia",
     };
+
     return methods[method] || method;
   };
 
   const getPaymentStatusColor = (status) => {
-    const colors = { paid: "success", pending: "warning", cancelled: "error" };
+    const colors = {
+      paid: "success",
+      pending: "warning",
+      cancelled: "error",
+    };
+
     return colors[status] || "warning";
   };
 
   const getPaymentStatusLabel = (status) => {
-    const labels = { paid: "Pagado", pending: "Pendiente", cancelled: "Cancelado" };
+    const labels = {
+      paid: "Pagado",
+      pending: "Pendiente",
+      cancelled: "Cancelado",
+    };
+
     return labels[status] || "Pendiente";
   };
 
@@ -181,6 +200,7 @@ export default function SalesPage() {
             onChange={(e) => setDateFilter({ ...dateFilter, start: e.target.value })}
             InputLabelProps={{ shrink: true }}
           />
+
           <TextField
             label="Fecha fin"
             type="date"
@@ -188,9 +208,11 @@ export default function SalesPage() {
             onChange={(e) => setDateFilter({ ...dateFilter, end: e.target.value })}
             InputLabelProps={{ shrink: true }}
           />
+
           <Button variant="contained" onClick={handleFilterByDate}>
             Filtrar
           </Button>
+
           <Button
             variant="outlined"
             onClick={() => {
@@ -223,6 +245,7 @@ export default function SalesPage() {
                   <TableCell align="center">Acciones</TableCell>
                 </TableRow>
               </TableHead>
+
               <TableBody>
                 {sales.length === 0 ? (
                   <TableRow>
@@ -234,15 +257,19 @@ export default function SalesPage() {
                   sales.map((sale) => (
                     <TableRow key={sale.id} hover>
                       <TableCell>{String(sale.id).slice(-8)}</TableCell>
+
                       <TableCell>
                         <div className="font-medium">{sale.userName || sale.customerName || "Cliente"}</div>
                         <div className="text-xs text-gray-500">{sale.userEmail || sale.customerEmail}</div>
                       </TableCell>
+
                       <TableCell>
                         <Chip label={getSaleChannelLabel(sale.saleChannel)} size="small" />
                       </TableCell>
+
                       <TableCell>{sale.date}</TableCell>
                       <TableCell>{getDeliveryMethodLabel(sale.deliveryMethod)}</TableCell>
+
                       <TableCell>
                         <div className="flex flex-col gap-2">
                           <span>{getPaymentMethodLabel(sale.paymentMethod)}</span>
@@ -260,7 +287,9 @@ export default function SalesPage() {
                           </div>
                         </div>
                       </TableCell>
+
                       <TableCell className="font-bold text-purple-600">${Number(sale.total || 0).toFixed(2)}</TableCell>
+
                       <TableCell>
                         <Chip
                           label={sale.orderStatus || "Sin estado"}
@@ -268,6 +297,7 @@ export default function SalesPage() {
                           size="small"
                         />
                       </TableCell>
+
                       <TableCell>
                         <div className="flex items-center gap-2">
                           <FormControl size="small" style={{ minWidth: 150 }}>
@@ -277,13 +307,14 @@ export default function SalesPage() {
                               displayEmpty
                             >
                               <MenuItem value="">Seleccionar</MenuItem>
-                              {getValidOrderStatuses(sale.deliveryMethod).map((status) => (
+                              {getValidOrderStatuses().map((status) => (
                                 <MenuItem key={status} value={status}>
                                   {status}
                                 </MenuItem>
                               ))}
                             </Select>
                           </FormControl>
+
                           <Button
                             size="small"
                             variant="contained"
@@ -294,10 +325,19 @@ export default function SalesPage() {
                           </Button>
                         </div>
                       </TableCell>
+
                       <TableCell align="center">
-                        <IconButton color="info" size="small" onClick={() => { setViewingSale(sale); setIsViewModalOpen(true); }}>
+                        <IconButton
+                          color="info"
+                          size="small"
+                          onClick={() => {
+                            setViewingSale(sale);
+                            setIsViewModalOpen(true);
+                          }}
+                        >
                           <VisibilityIcon />
                         </IconButton>
+
                         <IconButton color="error" size="small" onClick={() => setDeleteModal({ open: true, sale })}>
                           <DeleteIcon />
                         </IconButton>
@@ -318,14 +358,17 @@ export default function SalesPage() {
                   <p className="text-sm text-gray-500">Cliente</p>
                   <p className="font-semibold">{viewingSale.userName || viewingSale.customerName}</p>
                 </div>
+
                 <div>
                   <p className="text-sm text-gray-500">Canal</p>
                   <p className="font-semibold">{getSaleChannelLabel(viewingSale.saleChannel)}</p>
                 </div>
+
                 <div>
                   <p className="text-sm text-gray-500">Pago</p>
                   <p className="font-semibold">{getPaymentMethodLabel(viewingSale.paymentMethod)}</p>
                 </div>
+
                 <div>
                   <p className="text-sm text-gray-500">Estado de pago</p>
                   <Chip
@@ -334,6 +377,7 @@ export default function SalesPage() {
                     size="small"
                   />
                 </div>
+
                 <div>
                   <p className="text-sm text-gray-500">Estado pedido</p>
                   <Chip
@@ -342,6 +386,7 @@ export default function SalesPage() {
                     size="small"
                   />
                 </div>
+
                 <div>
                   <p className="text-sm text-gray-500">Total</p>
                   <p className="text-xl font-bold text-purple-600">${Number(viewingSale.total || 0).toFixed(2)}</p>
@@ -358,6 +403,7 @@ export default function SalesPage() {
                       <TableCell>Subtotal</TableCell>
                     </TableRow>
                   </TableHead>
+
                   <TableBody>
                     {viewingSale.products.map((product, index) => (
                       <TableRow key={index}>
@@ -377,11 +423,11 @@ export default function SalesPage() {
         <Modal isOpen={deleteModal.open} onClose={() => setDeleteModal({ open: false, sale: null })} title="Eliminar venta">
           <div className="space-y-4">
             <Alert severity="warning">
-              Esta acción eliminará la venta y devolverá el stock de sus productos. No se borrarán usuarios ni productos.
+              Esta acción eliminará la venta y devolverá el stock de sus productos.
             </Alert>
-            <p>
-              ¿Seguro que querés eliminar la venta #{deleteModal.sale ? String(deleteModal.sale.id).slice(-8) : ""}?
-            </p>
+
+            <p>¿Seguro que querés eliminar la venta #{deleteModal.sale ? String(deleteModal.sale.id).slice(-8) : ""}?</p>
+
             <div className="flex justify-end gap-2">
               <Button onClick={() => setDeleteModal({ open: false, sale: null })}>Cancelar</Button>
               <Button color="error" variant="contained" onClick={handleDeleteSale}>
